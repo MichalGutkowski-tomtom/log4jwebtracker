@@ -19,10 +19,12 @@ import javax.servlet.http.HttpServletResponse;
 import log4jwebtracker.io.StreamUtils;
 import log4jwebtracker.logging.LoggingUtils;
 
-import org.apache.log4j.FileAppender;
-import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.appender.AbstractOutputStreamAppender;
+import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 
 
 /**
@@ -34,9 +36,9 @@ public class TrackerServlet extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
 
-	private static final Logger logger = Logger.getLogger(TrackerServlet.class);
-	
-	private static final int BUFFER_SIZE = 1024 * 16;
+    private static final Logger logger = LogManager.getLogger(TrackerServlet.class);
+
+    private static final int BUFFER_SIZE = 1024 * 16;
 
 	private byte[] jqueryMin = null;
 	private byte[] jqueryWordWrap = null;
@@ -122,7 +124,7 @@ public class TrackerServlet extends HttpServlet {
 			HttpServletRequest request, HttpServletResponse response,
 			String action, String baseAction)
 					throws ServletException, IOException {
-		List loggers = LoggingUtils.getLoggers();
+		List<LoggerConfig> loggers = LoggingUtils.getLoggers();
 		request.setAttribute("loggers", loggers);
 		Enumeration e = request.getParameterNames();
 		while(e.hasMoreElements()) {
@@ -131,7 +133,7 @@ public class TrackerServlet extends HttpServlet {
 				Level level = Level.toLevel(request.getParameter(parameterName));
 				Logger root = LogManager.getRootLogger();
 				synchronized(root) {
-					root.setLevel(level);
+					Configurator.setLevel(root, level);
 				}
 				if(logger.isDebugEnabled()) {
 					logger.debug(parameterName + '=' + level.toString());
@@ -141,7 +143,7 @@ public class TrackerServlet extends HttpServlet {
 					Level level = Level.toLevel(request.getParameter(parameterName));
 					Logger logg = LogManager.getLogger(parameterName);
 					synchronized(logg) {
-						logg.setLevel(level);
+						Configurator.setLevel(parameterName, level);
 					}
 					if(logger.isDebugEnabled()) {
 						logger.debug(parameterName + '=' + level.toString());
@@ -182,24 +184,21 @@ public class TrackerServlet extends HttpServlet {
 							+ request.getParameter("lines"));
 				}
 			}
-			FileAppender fileAppender = LoggingUtils.getFileAppender(appenderName);
-			if(fileAppender!=null) {
+			String fileName = LoggingUtils.getFileNameFromAppender(appenderName);
+			if(fileName!=null) {
 				OutputStream output = response.getOutputStream();
 				try {
 					String contentType = "text/plain";
-					if(fileAppender.getEncoding()!=null) {
-						contentType += "; charset=" + fileAppender.getEncoding();
-					}
 					response.setContentType(contentType);
 					response.setHeader("Cache-Control", "no-cache"); // HTTP 1.1
 					response.setHeader("Pragma", "no-cache");        // HTTP 1.0
 					response.setDateHeader("Expires", -1);           // prevents caching
-					RandomAccessFile inputFile = new RandomAccessFile(fileAppender.getFile(), "r");
+					RandomAccessFile inputFile = new RandomAccessFile(fileName, "r");
 					StreamUtils.tailFile(inputFile, output, BUFFER_SIZE, lines);
 					inputFile.close();
 				} catch(IOException e) {
-					logger.error("Error getting the file appender="
-					           + fileAppender.getFile(), e);
+					logger.error("Error getting the file appender="+appenderName
+							+" file="+ fileName, e);
 					output.write("TrackerError: Check the log manually.".getBytes());
 				}
 				output.flush();
@@ -217,15 +216,12 @@ public class TrackerServlet extends HttpServlet {
 					throws ServletException, IOException {
 		String appenderName = request.getParameter("appender");
 		if(appenderName!=null) {
-			FileAppender fileAppender = LoggingUtils.getFileAppender(appenderName);
-			if(fileAppender!=null) {
-				File file = new File(fileAppender.getFile());
+			String fileName = LoggingUtils.getFileNameFromAppender(appenderName);
+			if(fileName!=null) {
+				File file = new File(fileName);
 				OutputStream output = response.getOutputStream();
 				try {
 					String contentType = "text/plain";
-					if(fileAppender.getEncoding()!=null) {
-						contentType += "; charset=" + fileAppender.getEncoding();
-					}
 					response.setContentType(contentType);
 					response.setContentLength((int) file.length());
 					response.setHeader("Cache-Control", "no-cache"); // HTTP 1.1
@@ -234,13 +230,13 @@ public class TrackerServlet extends HttpServlet {
 					response.setHeader("Content-Disposition",
 							"attachment; filename=\""
 							+ file.getName() + "\"");
-					InputStream fileStream = new FileInputStream(fileAppender.getFile());
+					InputStream fileStream = new FileInputStream(fileName);
 					StreamUtils.readStream(fileStream, output, BUFFER_SIZE);
 					fileStream.close();
 				} catch(IOException e) {
 					response.setHeader("Content-Disposition", "");
-					logger.error("Error getting the file appender="
-					           + fileAppender.getFile(), e);
+					logger.error("Error getting the file appender="+appenderName
+							+" file="+ fileName, e);
 					output.write("TrackerError: Check the log manually.".getBytes());
 					output.close();
 				}
@@ -303,7 +299,7 @@ public class TrackerServlet extends HttpServlet {
 			out.print("<div id=\"configuration\"><div id=\"filterContainer\"><div id=\"filterTextContainer\"><p>Filter:</p></div><div id=\"filterInputContainer\"><input type=\"text\" id=\"filter\" name=\"filter\"       placeholder=\"Enter the name or part of it\" spellcheck=\"false\"/></div></div><div class=\"clear\"></div><div id=\"loggersContainer\"><table id=\"loggers\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><thead><tr><th>Logger</th><th>Level</th></tr></thead><tbody>");
 
 			for (int i = 0; i < loggers.size(); i++) {
-				Logger logger = (Logger) loggers.get(i);
+				LoggerConfig logger = (LoggerConfig) loggers.get(i);
 
 				out.print("<tr class=\"logger-");
 				out.print(i % 2 == 0 ? "pair" : "odd");
@@ -318,35 +314,35 @@ public class TrackerServlet extends HttpServlet {
 				out.print("\" name=\"");
 				out.print(logger.getName());
 				out.print("\"><option value=\"TRACE\" ");
-				if (logger.getEffectiveLevel().toString() == "TRACE") {
+				if (logger.getLevel().toString() == "TRACE") {
 					out.print(" selected=\"selected\" ");
 				}
 				out.print(">TRACE</option><option value=\"DEBUG\" ");
-				if (logger.getEffectiveLevel().toString() == "DEBUG") {
+				if (logger.getLevel().toString() == "DEBUG") {
 					out.print(" selected=\"selected\" ");
 				}
 				out.print(">DEBUG</option><option value=\"INFO\" ");
-				if (logger.getEffectiveLevel().toString() == "INFO") {
+				if (logger.getLevel().toString() == "INFO") {
 					out.print(" selected=\"selected\" ");
 				}
 				out.print(">INFO</option><option value=\"WARN\" ");
-				if (logger.getEffectiveLevel().toString() == "WARN") {
+				if (logger.getLevel().toString() == "WARN") {
 					out.print(" selected=\"selected\" ");
 				}
 				out.print(">WARN</option><option value=\"ERROR\" ");
-				if (logger.getEffectiveLevel().toString() == "ERROR") {
+				if (logger.getLevel().toString() == "ERROR") {
 					out.print(" selected=\"selected\" ");
 				}
 				out.print(">ERROR</option><option value=\"FATAL\" ");
-				if (logger.getEffectiveLevel().toString() == "FATAL") {
+				if (logger.getLevel().toString() == "FATAL") {
 					out.print(" selected=\"selected\" ");
 				}
 				out.print(">FATAL</option><option value=\"OFF\" ");
-				if (logger.getEffectiveLevel().toString() == "OFF") {
+				if (logger.getLevel().toString() == "OFF") {
 					out.print(" selected=\"selected\" ");
 				}
 				out.print(">OFF</option>");
-				out.print(logger.getEffectiveLevel().toString());
+				out.print(logger.getLevel().toString());
 				out.print("</select></form></td></tr>");
 
 			}
@@ -362,7 +358,7 @@ public class TrackerServlet extends HttpServlet {
 			List fileAppenders = (List) request
 					.getAttribute("fileAppenders");
 			for (int i = 0; i < fileAppenders.size(); i++) {
-				FileAppender fap = (FileAppender) fileAppenders.get(i);
+				AbstractOutputStreamAppender fap = (AbstractOutputStreamAppender) fileAppenders.get(i);
 
 				out.print("<option value=\"");
 				out.print(fap.getName());

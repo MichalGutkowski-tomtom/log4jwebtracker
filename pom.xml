@@ -6,32 +6,39 @@
 	<groupId>log4jwebtracker</groupId>
 	<artifactId>log4jwebtracker</artifactId>
 	<packaging>jar</packaging>
-	<version>1.0.2</version>
+	<version>1.0.3-log4j2</version>
 	<name>log4jwebtracker</name>
 	<url>http://www.log4jwebtracker.com</url>
 
 	<prerequisites>
-		<maven>2.0.6</maven>
+		<maven>3.5.6</maven>
 	</prerequisites>
 
 	<dependencies>
 		<!-- Build time only dependencies -->
 		<dependency>
 			<groupId>javax.servlet</groupId>
-			<artifactId>servlet-api</artifactId>
-			<version>2.3</version>
+			<artifactId>javax.servlet-api</artifactId>
+			<version>3.1.0</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
-			<groupId>log4j</groupId>
-			<artifactId>log4j</artifactId>
-			<version>1.2.16</version>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-api</artifactId>
+			<version>2.17.2</version>
 			<scope>provided</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-core</artifactId>
+			<version>2.17.2</version>
+			<scope>provided</scope>
+		</dependency>
+
 		<dependency>
 			<groupId>commons-logging</groupId>
 			<artifactId>commons-logging</artifactId>
-			<version>1.0.4</version>
+			<version>1.1.1</version>
 			<scope>provided</scope>
 		</dependency>
 	</dependencies>
@@ -43,8 +50,8 @@
                 <groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
-					<source>1.4</source>
-					<target>1.4</target>
+					<source>1.8</source>
+					<target>1.8</target>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -87,4 +94,16 @@
 		</plugins>
 		<finalName>log4jwebtracker</finalName>
 	</build>
+	<distributionManagement>
+		<repository>
+		    <id>nexus</id>
+		    <name>Releases</name>
+		    <url>https://nexus.tomtomgroup.com/nexus/content/repositories/releases</url>
+		</repository>
+		<snapshotRepository>
+		    <id>nexus</id>
+		    <name>Snapshots</name>
+		    <url>https://nexus.tomtomgroup.com/nexus/content/repositories/snapshots</url>
+		</snapshotRepository>
+	</distributionManagement>
 </project>
